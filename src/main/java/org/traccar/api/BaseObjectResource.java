@@ -85,6 +85,16 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
             checkGroupHierarchy(group, true);
         }
 
+        createObject(entity);
+
+        return Response.ok(entity).build();
+    }
+
+    /**
+     * Stores a new object, records it in the audit log and links it to the current user.
+     * Callers are responsible for permission checks.
+     */
+    protected void createObject(T entity) throws Exception {
         entity.setId(storage.addObject(entity, new Request(new Columns.Exclude("id"))));
         actionLogger.create(request, getUserId(), entity);
 
@@ -94,8 +104,6 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
             connectionManager.invalidatePermission(true, User.class, getUserId(), baseClass, entity.getId(), true);
             actionLogger.link(request, getUserId(), User.class, getUserId(), baseClass, entity.getId());
         }
-
-        return Response.ok(entity).build();
     }
 
     @Path("{id}")
