@@ -79,6 +79,13 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
     @POST
     public Response add(T entity) throws Exception {
+        return Response.ok(createObject(entity)).build();
+    }
+
+    /**
+     * Stores a new object and links it to the current user, the same way as the create endpoint does.
+     */
+    protected T createObject(T entity) throws Exception {
         permissionsService.checkEdit(getUserId(), entity, true, false);
 
         if (entity instanceof Group group) {
@@ -95,7 +102,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
             actionLogger.link(request, getUserId(), User.class, getUserId(), baseClass, entity.getId());
         }
 
-        return Response.ok(entity).build();
+        return entity;
     }
 
     @Path("{id}")
