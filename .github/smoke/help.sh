@@ -16,4 +16,7 @@ H analyze-agentic sonar analyze agentic --help
 H integrate sonar integrate --help
 H integrate-claude sonar integrate claude --help
 H auth sonar auth --help
+H architecture-cmd sonar architecture --help
+H link sonar link --help
+H context-tool sonar context tool --help
 echo "help dumped: $(ls "$OUT/help" | wc -l) files"

@@ -20,3 +20,15 @@ rec() {
   return 0
 }
 rc_of() { jq -r --arg n "$1" 'select(.name==$n)|.rc' "$OUT/records.jsonl" | tail -n1; }
+
+# claude_run NAME PROMPT_FILE [extra claude flags...]: production flags, prompt on stdin, JSONL in $OUT/NAME.out
+claude_run() {
+  local name=$1 pf=$2
+  shift 2
+  # shellcheck source=/dev/null
+  source "$GITHUB_WORKSPACE/.github/factory/factory.env"
+  local tools
+  tools="$(tr '\n' ' ' <"$GITHUB_WORKSPACE/.github/factory/allowed-tools.txt") $AGENT_BUILD_TOOLS"
+  rec "$name" bash -c 'pf=$1; tools=$2; mcp=$3; shift 3; exec claude -p "$@" --permission-mode dontAsk --permission-prompts none --allowedTools "$tools" --strict-mcp-config --mcp-config "$mcp" --output-format stream-json --verbose --include-hook-events <"$pf"' _ "$pf" "$tools" "$GITHUB_WORKSPACE/.github/factory/mcp-empty.json" "$@"
+}
+result_of() { jq -c 'select(.type=="result")' "$OUT/$1.out" | tail -n1; }

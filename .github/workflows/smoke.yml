@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       parts:
-        description: Comma-separated parts to run (s1,help,s2,s3,s4,s5)
+        description: Comma-separated parts to run (s1,help,s3,s2,s4,s5)
         default: s1,help
       warm:
         description: Run compileJava before the parts
@@ -60,12 +60,12 @@ jobs:
       - name: Help dumps
         if: contains(inputs.parts, 'help')
         run: .github/smoke/help.sh
-      - name: S2 hooks headless
-        if: contains(inputs.parts, 's2')
-        run: .github/smoke/s2.sh
       - name: S3 context engine
         if: contains(inputs.parts, 's3')
         run: .github/smoke/s3.sh
+      - name: S2 hooks headless
+        if: contains(inputs.parts, 's2')
+        run: .github/smoke/s2.sh
       - name: S4 Vortex DEEP
         if: contains(inputs.parts, 's4')
         run: .github/smoke/s4.sh

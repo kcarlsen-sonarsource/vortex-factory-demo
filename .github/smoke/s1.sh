@@ -41,12 +41,18 @@ for k in sonarsource-public.key key-from-cli-source.asc; do
   [ -s "$d/$k" ] && { echo "== fingerprints in $k"; gpg --batch --show-keys --with-colons --fingerprint "$d/$k" | awk -F: '$1=="pub"||$1=="sub"||$1=="fpr"||$1=="uid"{print $1":"$2":"$5":"$10}' | tee "$d/fingerprints-$k.txt"; }
 done
 if [ -s "$d/probe.asc" ]; then
-  keyfile=$d/sonarsource-public.key
-  [ -s "$keyfile" ] || keyfile=$d/key-from-cli-source.asc
-  gpg --batch --import "$keyfile" >"$d/gpg-import.txt" 2>&1
   gpg --batch --list-packets "$d/probe.asc" >"$d/asc-packets.txt" 2>&1 || true
-  gpg --batch --status-fd 1 --verify "$d/probe.asc" "$bin" >"$d/gpg-verify.txt" 2>&1
-  echo "gpg --verify rc=$?" | tee -a "$d/gpg-verify.txt"
+  : >"$d/gpg-verify.txt"
+  for k in sonarsource-public.key key-from-cli-source.asc; do
+    [ -s "$d/$k" ] || continue
+    export GNUPGHOME
+    GNUPGHOME=$(mktemp -d)
+    chmod 700 "$GNUPGHOME"
+    gpg --batch --import "$d/$k" >>"$d/gpg-import.txt" 2>&1
+    echo "=== verify with $k" >>"$d/gpg-verify.txt"
+    gpg --batch --status-fd 1 --verify "$d/probe.asc" "$bin" >>"$d/gpg-verify.txt" 2>&1
+    echo "gpg --verify rc=$? ($k)" | tee -a "$d/gpg-verify.txt"
+  done
 else
   echo "no .asc published next to the binary; signature not verified" | tee "$d/gpg-verify.txt"
 fi
