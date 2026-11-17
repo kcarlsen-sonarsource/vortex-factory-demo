@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 - 2023 Anton Tananaev (anton@traccar.org)
+ * Copyright 2018 - 2026 Anton Tananaev (anton@traccar.org)
  * Copyright 2018 Andrey Kunitsyn (andrey@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,7 @@ import org.traccar.notificators.NotificatorSms;
 import org.traccar.notificators.NotificatorTelegram;
 import org.traccar.notificators.NotificatorTraccar;
 import org.traccar.notificators.NotificatorWeb;
+import org.traccar.notificators.NotificatorWebhook;
 import org.traccar.notificators.NotificatorWhatsapp;
 
 import jakarta.inject.Inject;
@@ -51,7 +52,8 @@ public class NotificatorManager {
             "traccar", NotificatorTraccar.class,
             "telegram", NotificatorTelegram.class,
             "whatsapp", NotificatorWhatsapp.class,
-            "pushover", NotificatorPushover.class);
+            "pushover", NotificatorPushover.class,
+            "webhook", NotificatorWebhook.class);
 
     private final Injector injector;
 

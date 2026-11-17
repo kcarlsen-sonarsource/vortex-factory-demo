@@ -1425,6 +1425,8 @@ public final class Keys {
 
     /**
      * Enabled notification options. Comma-separated string is expected.
+     * Supported values: command, web, mail, sms, firebase, traccar, telegram, whatsapp, pushover, webhook.
+     * The webhook option posts a JSON payload to the URL set in the user {@code webhookUrl} attribute.
      * Example: web,mail,sms
      */
     public static final ConfigKey<String> NOTIFICATOR_TYPES = new StringConfigKey(
