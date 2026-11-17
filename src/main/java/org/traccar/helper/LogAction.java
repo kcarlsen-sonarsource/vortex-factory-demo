@@ -64,6 +64,8 @@ public final class LogAction {
     private static final String ACTION_ACCUMULATORS = "accumulators";
     private static final String ACTION_COMMAND = "command";
     private static final String ACTION_REPORT = "report";
+    private static final String ACTION_DOCUMENT_UPLOAD = "documentUpload";
+    private static final String ACTION_DOCUMENT_DELETE = "documentDelete";
 
     public void create(HttpServletRequest request, long userId, BaseModel object) {
         logObjectAction(request, ACTION_CREATE, userId, object.getClass(), object.getId());
@@ -123,6 +125,26 @@ public final class LogAction {
         action.setActionType(ACTION_ACCUMULATORS);
         action.setObjectType(Introspector.decapitalize(Device.class.getSimpleName()));
         action.setObjectId(deviceId);
+        storeAction(action);
+    }
+
+    public void uploadDocument(HttpServletRequest request, long userId, long deviceId, String name) {
+        logDocumentAction(request, ACTION_DOCUMENT_UPLOAD, userId, deviceId, name);
+    }
+
+    public void deleteDocument(HttpServletRequest request, long userId, long deviceId, String name) {
+        logDocumentAction(request, ACTION_DOCUMENT_DELETE, userId, deviceId, name);
+    }
+
+    private void logDocumentAction(
+            HttpServletRequest request, String actionType, long userId, long deviceId, String name) {
+        Action action = new Action();
+        action.setAddress(WebHelper.retrieveRemoteAddress(request));
+        action.setUserId(userId);
+        action.setActionType(actionType);
+        action.setObjectType(Introspector.decapitalize(Device.class.getSimpleName()));
+        action.setObjectId(deviceId);
+        action.set("document", name);
         storeAction(action);
     }
 

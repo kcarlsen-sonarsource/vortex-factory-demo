@@ -775,6 +775,132 @@ paths:
         '404':
           description: Device not found
           content: {}
+  /devices/{id}/documents:
+    get:
+      operationId: getDevicesIdDocuments
+      summary: Fetch a list of Device documents
+      description: Available to any user with access to the device
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceDocument'
+        '400':
+          description: No permission
+          content: {}
+        '404':
+          description: Device not found
+          content: {}
+    post:
+      operationId: postDevicesIdDocuments
+      summary: Upload a Device document
+      description: >-
+        Requires device edit permission. Accepts a PDF or image up to 10 MB. The file extension matching the content
+        type is appended to the name if missing. An existing document with the same name is replaced.
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: name
+          in: query
+          required: true
+          description: >-
+            Document name; letters, digits, underscores, spaces, dots, parentheses and dashes, starting with a letter,
+            digit or underscore, up to 128 characters
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          image/*:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceDocument'
+        '400':
+          description: No permission, invalid name, unsupported type or size limit exceeded
+          content: {}
+        '404':
+          description: Device not found
+          content: {}
+  /devices/{id}/documents/{name}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: getDevicesIdDocumentsName
+      summary: Download a Device document
+      description: Available to any user with access to the device
+      tags:
+        - Devices
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: No permission or invalid name
+          content: {}
+        '404':
+          description: Device or document not found
+          content: {}
+    delete:
+      operationId: deleteDevicesIdDocumentsName
+      summary: Delete a Device document
+      description: Requires device edit permission
+      tags:
+        - Devices
+      responses:
+        '204':
+          description: No Content
+          content: {}
+        '400':
+          description: No permission or invalid name
+          content: {}
+        '404':
+          description: Device or document not found
+          content: {}
   /share/device:
     post:
       operationId: postShareDevice
@@ -4498,6 +4624,20 @@ components:
         hours:
           type: number
           description: Total engine hours recorded by the device
+    DeviceDocument:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Document file name, including extension
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+        uploadTime:
+          type: string
+          format: date-time
+          description: Time the document was last uploaded
     Calendar:
       type: object
       properties:
