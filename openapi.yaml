@@ -804,6 +804,150 @@ paths:
         '404':
           description: Device not found
           content: {}
+  /devices/{id}/documents:
+    get:
+      operationId: getDevicesIdDocuments
+      summary: Fetch a list of Device documents
+      description: Available to users with access to the Device.
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeviceDocument'
+        '400':
+          description: No access to the Device
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+    post:
+      operationId: postDevicesIdDocuments
+      summary: Upload a Device document
+      description: >-
+        Accepts a PDF or image (JPEG, PNG, GIF or WebP) of up to 10 MB. Requires permission to edit the
+        Device. The stored name is derived from the name parameter; a numeric suffix is added if a
+        document with the same name already exists.
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: name
+          in: query
+          description: Original file name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/pdf:
+            schema:
+              type: string
+              format: binary
+          image/*:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceDocument'
+        '400':
+          description: Invalid document type or size, or no permission to edit the Device
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+        '404':
+          description: Device not found
+          content: {}
+  /devices/{id}/documents/{name}:
+    get:
+      operationId: getDevicesIdDocumentsName
+      summary: Download a Device document
+      description: Available to users with access to the Device.
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: No access to the Device
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+        '404':
+          description: Device or document not found
+          content: {}
+    delete:
+      operationId: deleteDevicesIdDocumentsName
+      summary: Delete a Device document
+      description: Requires permission to edit the Device.
+      tags:
+        - Devices
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: No Content
+          content: {}
+        '400':
+          description: No permission to edit the Device
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+        '404':
+          description: Device or document not found
+          content: {}
   /share/device:
     post:
       operationId: postShareDevice
@@ -4514,6 +4658,18 @@ components:
         messagesStored:
           type: integer
           description: Number of device messages stored to the database
+    DeviceDocument:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Stored file name, used to download or delete the document
+        size:
+          type: integer
+          description: File size in bytes
+        uploadTime:
+          type: string
+          format: date-time
     DeviceImportResult:
       type: object
       properties:

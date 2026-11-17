@@ -21,6 +21,7 @@ import org.traccar.helper.CsvParser;
 import org.traccar.helper.LogAction;
 import org.traccar.model.Device;
 import org.traccar.model.DeviceAccumulators;
+import org.traccar.model.DeviceDocument;
 import org.traccar.model.DeviceImportResult;
 import org.traccar.model.Group;
 import org.traccar.model.LinkedDevice;
@@ -37,8 +38,10 @@ import org.traccar.storage.query.Request;
 import jakarta.inject.Inject;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
@@ -49,9 +52,11 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,6 +75,14 @@ public class DeviceResource extends BaseObjectResource<Device> {
 
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private static final int IMAGE_SIZE_LIMIT = 500000;
+    private static final long DOCUMENT_SIZE_LIMIT = 10 * 1024 * 1024;
+    private static final int DOCUMENT_HEADER_SIZE = 12;
+    private static final Map<String, String> DOCUMENT_EXTENSIONS = Map.of(
+            "application/pdf", "pdf",
+            "image/jpeg", "jpg",
+            "image/png", "png",
+            "image/gif", "gif",
+            "image/webp", "webp");
 
     private static final String UNIQUE_ID = "uniqueId";
 
@@ -352,6 +365,117 @@ public class DeviceResource extends BaseObjectResource<Device> {
             return Response.ok(name + "." + extension).build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    private static String documentType(String name) {
+        String extension = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
+        return DOCUMENT_EXTENSIONS.entrySet().stream()
+                .filter(entry -> entry.getValue().equals(extension))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+    }
+
+    private static boolean startsWith(byte[] header, int offset, int... signature) {
+        if (header.length < offset + signature.length) {
+            return false;
+        }
+        for (int i = 0; i < signature.length; i++) {
+            if ((header[offset + i] & 0xff) != signature[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean startsWith(byte[] header, int offset, String signature) {
+        return startsWith(header, offset, signature.chars().toArray());
+    }
+
+    private static boolean matchesSignature(String extension, byte[] header) {
+        return switch (extension) {
+            case "pdf" -> startsWith(header, 0, "%PDF-");
+            case "jpg" -> startsWith(header, 0, 0xff, 0xd8, 0xff);
+            case "png" -> startsWith(header, 0, 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n');
+            case "gif" -> startsWith(header, 0, "GIF8");
+            case "webp" -> startsWith(header, 0, "RIFF") && startsWith(header, 8, "WEBP");
+            default -> false;
+        };
+    }
+
+    private Device getDocumentDevice(long deviceId, boolean edit) throws StorageException {
+        if (edit) {
+            permissionsService.checkEdit(getUserId(), Device.class, false, false);
+        }
+        permissionsService.checkPermission(Device.class, getUserId(), deviceId);
+        Device device = storage.getObject(Device.class, new Request(
+                new Columns.All(), new Condition.Equals("id", deviceId)));
+        if (device == null) {
+            throw new NotFoundException("Device not found");
+        }
+        return device;
+    }
+
+    @Path("{id}/documents")
+    @GET
+    public List<DeviceDocument> getDocuments(@PathParam("id") long deviceId) throws StorageException, IOException {
+        Device device = getDocumentDevice(deviceId, false);
+        return mediaManager.listDocuments(device.getUniqueId());
+    }
+
+    @Path("{id}/documents")
+    @POST
+    @Consumes({"application/pdf", "image/*"})
+    public DeviceDocument uploadDocument(
+            @PathParam("id") long deviceId, @QueryParam("name") String name, InputStream input,
+            @HeaderParam(HttpHeaders.CONTENT_TYPE) String type) throws StorageException, IOException {
+
+        Device device = getDocumentDevice(deviceId, true);
+
+        String mediaType = type != null ? type.split(";")[0].trim().toLowerCase(Locale.ROOT) : "";
+        String extension = DOCUMENT_EXTENSIONS.get(mediaType);
+        if (extension == null) {
+            throw new IllegalArgumentException("Unsupported document type");
+        }
+
+        var bufferedInput = new BufferedInputStream(input);
+        bufferedInput.mark(DOCUMENT_HEADER_SIZE);
+        byte[] header = bufferedInput.readNBytes(DOCUMENT_HEADER_SIZE);
+        bufferedInput.reset();
+        if (!matchesSignature(extension, header)) {
+            throw new IllegalArgumentException("Document content does not match its type");
+        }
+
+        return mediaManager.writeDocument(
+                device.getUniqueId(), name, extension, bufferedInput, DOCUMENT_SIZE_LIMIT);
+    }
+
+    @Path("{id}/documents/{name}")
+    @GET
+    @Produces(MediaType.WILDCARD)
+    public Response downloadDocument(
+            @PathParam("id") long deviceId, @PathParam("name") String name) throws StorageException, IOException {
+        Device device = getDocumentDevice(deviceId, false);
+        File file = mediaManager.getDocument(device.getUniqueId(), name);
+        if (file == null) {
+            throw new NotFoundException("Document not found");
+        }
+        return Response.ok(file, documentType(file.getName()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                .header("Content-Security-Policy", "sandbox")
+                .header("X-Content-Type-Options", "nosniff")
+                .build();
+    }
+
+    @Path("{id}/documents/{name}")
+    @DELETE
+    public Response deleteDocument(
+            @PathParam("id") long deviceId, @PathParam("name") String name) throws StorageException, IOException {
+        Device device = getDocumentDevice(deviceId, true);
+        if (!mediaManager.deleteDocument(device.getUniqueId(), name)) {
+            throw new NotFoundException("Document not found");
+        }
+        return Response.noContent().build();
     }
 
 }
