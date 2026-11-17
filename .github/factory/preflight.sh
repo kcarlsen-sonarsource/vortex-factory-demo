@@ -15,9 +15,9 @@ jq -e '[.hooks.SessionStart[]? | select(.matcher == "startup|clear")] | length >
   || fail "no startup|clear SessionStart hook in $claude_home/settings.json"
 grep -q 'Vortex analysis protocol' "$claude_home/CLAUDE.md" || fail "Vortex analysis protocol missing from $claude_home/CLAUDE.md"
 
-[ -f .sonar-config.json ] || fail ".sonar-config.json missing (run: sonar link <project-key>)"
+[[ -f .sonar-config.json ]] || fail ".sonar-config.json missing (run: sonar link <project-key>)"
 key=$(jq -r '(.project // .projects[0]).projectKey // empty' .sonar-config.json)
-case "$key" in ''|REPLACE_*) fail ".sonar-config.json has no real project key" ;; esac
+case "$key" in ''|REPLACE_*) fail ".sonar-config.json has no real project key" ;; *) ;; esac
 
 if grep -qi 'skipping' "$EVIDENCE_DIR/integrate.log"; then
   fail "sonar integrate skipped a feature: $(grep -i 'skipping' "$EVIDENCE_DIR/integrate.log" | head -1)"

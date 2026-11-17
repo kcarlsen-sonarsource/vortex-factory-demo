@@ -9,7 +9,7 @@ cd "$EVIDENCE_DIR"
 
 events=$(mktemp)
 for f in round-*.jsonl; do
-  [ -e "$f" ] || continue
+  [[ -e "$f" ]] || continue
   jq -cR --arg f "$f" 'fromjson? | select(type == "object") | . + {_file: $f}' "$f"
 done >"$events"
 

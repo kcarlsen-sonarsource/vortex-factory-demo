@@ -14,12 +14,15 @@ records=$(mktemp)
 trap 'rm -f "$records"' EXIT
 
 die() { echo "publish: $*" >&2; exit 1; }
-sha256() { shasum -a 256 "$1" | cut -d' ' -f1; }
+sha256() {
+  local file=$1
+  shasum -a 256 "$file" | cut -d' ' -f1
+}
 
 check() {
   local patch=$1
-  [ -s "$patch" ] || die "empty patch"
-  if [ -n "${PATCH_SHA256:-}" ] && [ "$(sha256 "$patch")" != "$PATCH_SHA256" ]; then
+  [[ -s "$patch" ]] || die "empty patch"
+  if [[ -n "${PATCH_SHA256:-}" ]] && [[ "$(sha256 "$patch")" != "$PATCH_SHA256" ]]; then
     die "patch SHA-256 does not match the worker's output"
   fi
   if grep -Eq '^(new file mode|old mode|new mode|deleted file mode) (120000|160000)' "$patch"; then
@@ -49,17 +52,18 @@ check() {
           [[ $path =~ ^[A-Za-z0-9._@+/-]+$ && $path != /* && $path != *..* ]] || { die "unsupported path: $path"; }
         done ;;
       N)
-        [ "$a" -le "$MAX_PATCH_FILES" ] || { die "patch touches $a files (cap $MAX_PATCH_FILES)"; }
-        [ "$b" -le "$MAX_PATCH_LINES" ] || { die "patch changes $b lines (cap $MAX_PATCH_LINES)"; } ;;
+        [[ "$a" -le "$MAX_PATCH_FILES" ]] || { die "patch touches $a files (cap $MAX_PATCH_FILES)"; }
+        [[ "$b" -le "$MAX_PATCH_LINES" ]] || { die "patch changes $b lines (cap $MAX_PATCH_LINES)"; } ;;
+      *) ;;
     esac
   done <"$records"
 
   local pat glob re
   shopt -s nocasematch
   while IFS=$'\t' read -r kind a b; do
-    [ "$kind" = F ] || continue
+    [[ "$kind" = F ]] || continue
     while IFS= read -r pat; do
-      case $pat in '' | '#'*) continue ;; esac
+      case $pat in '' | '#'*) continue ;; *) ;; esac
       # shellcheck disable=SC2053
       if [[ $a == $pat || $b == $pat ]]; then die "protected path: $b (matches $pat)"; fi
     done <"$here/protected-paths.txt"
@@ -67,11 +71,11 @@ check() {
   shopt -u nocasematch
 
   while IFS= read -r pat; do
-    case $pat in '' | '#'*) continue ;; esac
+    case $pat in '' | '#'*) continue ;; *) ;; esac
     glob=${pat%%:*}
     re=${pat#*:}
     while IFS=$'\t' read -r kind a b; do
-      [ "$kind" = L ] || continue
+      [[ "$kind" = L ]] || continue
       # shellcheck disable=SC2053
       [[ $a == $glob ]] || continue
       if printf '%s\n' "${b:1}" | grep -Eiq -- "$re"; then
@@ -84,7 +88,7 @@ check() {
 run() {
   : "${PATCH:?}" "${BASE_SHA:?}" "${ISSUE_NUMBER:?}" "${BASE_BRANCH:?}" "${GH_TOKEN:?}" "${GITHUB_REPOSITORY:?}" "${APP_SLUG:?}"
   check "$PATCH"
-  [ "$(git rev-parse HEAD)" = "$BASE_SHA" ] || die "checkout is not at BASE_SHA"
+  [[ "$(git rev-parse HEAD)" = "$BASE_SHA" ]] || die "checkout is not at BASE_SHA"
 
   local title branch bot_id msg
   title=$(printf '%s' "${ISSUE_TITLE:-}" | tr -d '\r\n')
@@ -108,7 +112,7 @@ run() {
   body=$(mktemp)
   {
     printf 'Implements #%s.\n\nFactory run: %s\n\n' "$ISSUE_NUMBER" "${RUN_URL:-}"
-    [ -z "${ROUNDS_FILE:-}" ] || cat "$ROUNDS_FILE"
+    [[ -z "${ROUNDS_FILE:-}" ]] || cat "$ROUNDS_FILE"
   } >"$body"
   pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE_BRANCH" --head "$branch" \
     --title "Resolve #$ISSUE_NUMBER: $title" --body-file "$body")

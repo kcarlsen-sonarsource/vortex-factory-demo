@@ -20,7 +20,7 @@ runs:
       run: |
         [[ "$SONAR_CLI_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::SONAR_CLI_SHA256 is not set in versions.env"; exit 1; }
         url="https://binaries.sonarsource.com/Distribution/sonarqube-cli/${SONAR_CLI_VERSION}/linux/sonarqube-cli-${SONAR_CLI_VERSION}-linux-x86-64.bin"
-        curl --fail --silent --show-error --location --output "$RUNNER_TEMP/sonar.bin" "$url"
+        curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location --output "$RUNNER_TEMP/sonar.bin" "$url"
         echo "${SONAR_CLI_SHA256}  $RUNNER_TEMP/sonar.bin" | sha256sum --check -
         install -D -m 0755 "$RUNNER_TEMP/sonar.bin" "$HOME/.local/bin/sonar"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -37,7 +37,7 @@ runs:
         # shellcheck source=/dev/null
         source "$FACTORY_DIR/factory.env"
         start=$SECONDS
-        if [ -n "$VORTEX_WARMUP_ECOSYSTEM" ]; then
+        if [[ -n "$VORTEX_WARMUP_ECOSYSTEM" ]]; then
           sonar context navigation get-map --ecosystem "$VORTEX_WARMUP_ECOSYSTEM" --depth 0 > "$EVIDENCE_DIR/warmup-map.txt"
         fi
         sonar context architecture get-constraints | tee "$EVIDENCE_DIR/warmup-constraints.txt"
