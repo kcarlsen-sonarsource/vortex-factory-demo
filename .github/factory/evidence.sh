@@ -22,10 +22,10 @@ calls=$(jq -s '
   (map(select(.type == "user") | .message.content[]? | select(type == "object" and .type == "tool_result"))
     | map({key: .tool_use_id, value: .}) | from_entries) as $res
   | [ .[] | select(.type == "assistant") | .message.content[]?
-      | select(.type == "tool_use" and .name == "Bash" and (.input.command | test("^\\s*sonar\\s+(context|analyze agentic)")))
+      | select(.type == "tool_use" and .name == "Bash" and (.input.command | test("(^|[;&|]\\s*)sonar\\s+(context|analyze agentic)")))
       | ($res[.id] // {}) as $r
       | ($r.content // "" | text) as $t
-      | (.input.command | split(" ") | map(select(. != ""))) as $w
+      | (.input.command | capture("(?:^|[;&|]\\s*)(?<s>sonar\\s+(?:context|analyze agentic).*)").s | split(" ") | map(select(. != ""))) as $w
       | { group: ($w[1:3] | join(" ")),
           command: .input.command,
           exit_code: (($t | capture("^Exit code (?<c>[0-9]+)").c? | tonumber) // (if $r.is_error then 1 else 0 end)),
