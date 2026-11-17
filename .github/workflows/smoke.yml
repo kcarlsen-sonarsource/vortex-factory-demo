@@ -27,7 +27,6 @@ jobs:
       SONARQUBE_CLI_ORG: ${{ vars.SONARQUBE_CLI_ORG }}
       DO_NOT_TRACK: "1"
       DISABLE_AUTOUPDATER: "1"
-      OUT: ${{ github.workspace }}/../smoke-out
       PARTS: ${{ inputs.parts }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,7 +36,8 @@ jobs:
       - name: Load pins
         run: |
           grep -E "^[A-Z0-9_]+=" .github/factory/versions.env >> "$GITHUB_ENV"
-          mkdir -p "$OUT"
+          echo "OUT=$RUNNER_TEMP/smoke-out" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/smoke-out"
           echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           git config user.name smoke && git config user.email smoke@example.invalid
       - uses: ./.github/actions/setup-toolchain
@@ -80,5 +80,5 @@ jobs:
         if: always() && steps.redact.outcome != 'failure'
         with:
           name: smoke-out
-          path: ${{ github.workspace }}/../smoke-out
+          path: ${{ runner.temp }}/smoke-out
           retention-days: 14
