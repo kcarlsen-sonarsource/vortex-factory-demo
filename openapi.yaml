@@ -2209,6 +2209,61 @@ paths:
         '400':
           description: Bad request
           content: {}
+  /geofences/import:
+    post:
+      operationId: importGeofences
+      summary: Import Geofences from a KML or GeoJSON file
+      description: >-
+        Creates one Geofence for each polygon, line or circle in the file and links it to the current user.
+        Circles are points with a `radius` in meters, set in KML ExtendedData or in GeoJSON feature properties.
+        Names and descriptions come from the placemark or feature. Unnamed entries get the document name and
+        their position in the file. Entries that can't be imported are returned in `skipped`.
+      tags:
+        - Geofences
+      requestBody:
+        content:
+          application/vnd.google-earth.kml+xml:
+            schema:
+              type: string
+              format: binary
+          application/geo+json:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  geofences:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Geofence'
+                  skipped:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        index:
+                          type: integer
+                          description: Zero-based position of the entry in the file
+                        name:
+                          type: string
+                        reason:
+                          type: string
+        '400':
+          description: Invalid or unsupported file
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
+        '413':
+          description: File larger than 10 MB
+          content: {}
   /geofences/{id}:
     get:
       operationId: getGeofencesId
