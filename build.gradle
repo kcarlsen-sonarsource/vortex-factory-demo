@@ -8,6 +8,8 @@ plugins {
     id "io.github.ben-manes.versions" version "0.67.0"
 }
 
+version = "6.17.0"
+
 repositories {
     mavenCentral()
 }
