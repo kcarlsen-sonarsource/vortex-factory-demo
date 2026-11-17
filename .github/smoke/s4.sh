@@ -7,7 +7,7 @@ git switch -c factory/issue-smoke-s4 >/dev/null 2>&1 || git switch factory/issue
 echo "branch: $(git branch --show-current) base: $BASE_SHA" >"$d/context.txt"
 f=src/main/java/org/traccar/api/resource/DeviceResource.java
 new=src/main/java/org/traccar/api/resource/SmokeFileResource.java
-deep() { rec "$1" sonar analyze agentic --base "${2:-$BASE_SHA}" --depth DEEP --format json --force; echo "  files: $(jq -c '[.files[]? | (.path // .file // .filePath // .name)]' "$OUT/$1.out" 2>/dev/null | head -c 300)"; }
+deep() { rec "$1" sonar analyze agentic --base "${2:-$BASE_SHA}" --depth DEEP --format json --force ${3:+--branch "$3"}; echo "  files: $(jq -c '[.files[]? | (.path // .file // .filePath // .name)]' "$OUT/$1.out" 2>/dev/null | head -c 300)"; }
 
 # Case A: unchanged tree
 deep s4-a-clean-tree
@@ -93,8 +93,34 @@ deep s4-d-newclass-nocompile
 deep s4-d-newclass-compiled
 git rm -q --cached "$new"; rm -f "$new"; git status --porcelain >"$d/status-final.txt"
 
+# Case F: comment-only change to a file that already has issues (are pre-existing issues reported?)
+sed -i '1i // smoke comment' "$f"
+deep s4-f-comment-only-edit
+git checkout -- "$f"
+
+# Case G: seeded defect again, branch context named explicitly
+python3 - "$f" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read().rstrip()
+s = s[:-1] + """
+    @jakarta.ws.rs.GET
+    @jakarta.ws.rs.Path("smoke")
+    public String smokeRead(@jakarta.ws.rs.QueryParam("name") String name) throws java.io.IOException {
+        java.io.FileInputStream stream = new java.io.FileInputStream("/var/lib/traccar/media/" + name);
+        return new String(stream.readAllBytes());
+    }
+
+}
+"""
+open(p, "w").write(s)
+PY
+deep s4-g-seeded-branch-main "$BASE_SHA" main
+deep s4-g2-seeded-branch-unknown "$BASE_SHA" factory/issue-never-analyzed
+git checkout -- "$f"
+
 # Case E: base is the CI-analyzed commit
 deep s4-e-clean-tree-base-7c94c932b 7c94c932b9a0f9a7d94ea0142d97b887a1942fd7
-for n in a-clean-tree b-seeded-nocompile b-seeded-compiled c-fixed-compiled d-newclass-nocompile d-newclass-compiled e-clean-tree-base-7c94c932b; do
+for n in f-comment-only-edit g-seeded-branch-main g2-seeded-branch-unknown a-clean-tree b-seeded-nocompile b-seeded-compiled c-fixed-compiled d-newclass-nocompile d-newclass-compiled e-clean-tree-base-7c94c932b; do
   echo "--- s4-$n rc=$(rc_of s4-$n)"; head -c 500 "$OUT/s4-$n.out"; echo; head -c 300 "$OUT/s4-$n.err"
 done
