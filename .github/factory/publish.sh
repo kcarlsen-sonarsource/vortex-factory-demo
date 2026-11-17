@@ -92,6 +92,8 @@ run() {
 
   local title branch bot_id msg
   title=$(printf '%s' "${ISSUE_TITLE:-}" | tr -d '\r\n')
+  local tag=""
+  [[ "${FACTORY_CONTROL:-false}" != true ]] || tag="[control] "
   branch="factory/issue-$ISSUE_NUMBER-${GITHUB_RUN_ID:-local}"
   bot_id=$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)
 
@@ -103,6 +105,7 @@ run() {
     printf 'Factory-Issue: #%s\n' "$ISSUE_NUMBER"
     printf 'Factory-Run: %s\n' "${RUN_URL:-}"
     printf 'Factory-Base: %s\n' "$BASE_SHA"
+    [[ -z "$tag" ]] || printf 'Factory-Control: true\n'
     printf 'Factory-Patch-SHA256: %s\n' "$(sha256 "$PATCH")"
   } >"$msg"
   git -c "user.name=${APP_SLUG}[bot]" -c "user.email=${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com" commit -q -F "$msg"
@@ -111,11 +114,12 @@ run() {
   local body
   body=$(mktemp)
   {
+    [[ -z "$tag" ]] || printf '[control] Vortex switched off for this run: no setup-vortex, no preflight, no verify.\n\n'
     printf 'Implements #%s.\n\nFactory run: %s\n\n' "$ISSUE_NUMBER" "${RUN_URL:-}"
     [[ -z "${ROUNDS_FILE:-}" ]] || cat "$ROUNDS_FILE"
   } >"$body"
   pr_url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE_BRANCH" --head "$branch" \
-    --title "Resolve #$ISSUE_NUMBER: $title" --body-file "$body")
+    --title "${tag}Resolve #$ISSUE_NUMBER: $title" --body-file "$body")
   echo "$pr_url"
   echo "pr_url=$pr_url" >>"${GITHUB_OUTPUT:-/dev/null}"
 }

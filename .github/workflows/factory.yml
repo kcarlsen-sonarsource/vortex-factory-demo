@@ -7,6 +7,10 @@ on:
       issue_number:
         description: Issue to implement
         required: true
+      control:
+        description: "Demo only: control arm. Skip setup-vortex, preflight, and verify.sh."
+        type: boolean
+        default: false
 permissions: {}
 concurrency:
   group: factory-${{ github.event.issue.number || inputs.issue_number }}
@@ -67,6 +71,7 @@ jobs:
       DO_NOT_TRACK: "1"
       DISABLE_AUTOUPDATER: "1"
       BASE_SHA: ${{ needs.intake.outputs.base_sha }}
+      FACTORY_CONTROL: ${{ inputs.control == true && 'true' || 'false' }}
     outputs:
       outcome: ${{ steps.run.outputs.outcome }}
       patch_sha256: ${{ steps.run.outputs.patch_sha256 }}
@@ -113,10 +118,12 @@ jobs:
           npm install --global --prefix "$HOME/.local" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: ./ctl/.github/actions/setup-vortex
+        if: inputs.control != true
         with:
           factory-dir: ${{ github.workspace }}/ctl/.github/factory
           evidence-dir: ${{ runner.temp }}/evidence
       - name: Preflight
+        if: inputs.control != true
         working-directory: ws
         run: ../ctl/.github/factory/preflight.sh
       - name: Run the agent
@@ -178,6 +185,7 @@ jobs:
           BASE_BRANCH: ${{ github.event.repository.default_branch }}
           ISSUE_NUMBER: ${{ needs.intake.outputs.issue_number }}
           ISSUE_TITLE: ${{ needs.intake.outputs.issue_title }}
+          FACTORY_CONTROL: ${{ inputs.control == true && 'true' || 'false' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: .github/factory/publish.sh run
     outputs:

@@ -81,7 +81,12 @@ while :; do
   (cd "$WS" && bash -c "$TEST_CMD") >"$EVIDENCE_DIR/tests-r$round.log" 2>&1 || tests_rc=$?
 
   vrc=0
-  (cd "$WS" && "$here/verify.sh" "$EVIDENCE_DIR/verify-r$round.json") >"$EVIDENCE_DIR/findings-r$round.txt" 2>"$EVIDENCE_DIR/verify-r$round.err" || vrc=$?
+  if [[ "${FACTORY_CONTROL:-false}" = true ]]; then
+    : >"$EVIDENCE_DIR/findings-r$round.txt" # control arm: no Vortex check
+    : >"$EVIDENCE_DIR/verify-r$round.err"
+  else
+    (cd "$WS" && "$here/verify.sh" "$EVIDENCE_DIR/verify-r$round.json") >"$EVIDENCE_DIR/findings-r$round.txt" 2>"$EVIDENCE_DIR/verify-r$round.err" || vrc=$?
+  fi
   nfind=$(grep -c . "$EVIDENCE_DIR/findings-r$round.txt" || true)
   npre=$(grep -c . "$EVIDENCE_DIR/verify-r$round.json.preexisting.txt" 2>/dev/null || true)
   jq -nc --argjson r "$round" --argjson t "$turns" --argjson c "$cost" --argjson tr "$tests_rc" --argjson v "$vrc" --argjson n "$nfind" --argjson p "${npre:-0}" \
@@ -119,6 +124,6 @@ git -C "$WS" add -A
 git -C "$WS" diff --cached --binary "$BASE_SHA" >"$PATCH_DIR/factory.patch"
 patch_sha=$(shasum -a 256 "$PATCH_DIR/factory.patch" | cut -d' ' -f1)
 echo "$patch_sha" >"$PATCH_DIR/factory.patch.sha256"
-jq -rs '"| Round | Tests | Vortex | Findings |\n| --- | --- | --- | --- |\n" + (map("| \(.round) | \(if .tests_rc == 0 then "pass" else "fail" end) | \(if .verify_rc == 0 then "clean" else "findings" end) | \(.findings) |") | join("\n"))' \
+jq -rs --arg ctl "${FACTORY_CONTROL:-false}" '"| Round | Tests | Vortex | Findings |\n| --- | --- | --- | --- |\n" + (map("| \(.round) | \(if .tests_rc == 0 then "pass" else "fail" end) | \(if $ctl == "true" then "skipped" elif .verify_rc == 0 then "clean" else "findings" end) | \(.findings) |") | join("\n"))' \
   "$EVIDENCE_DIR/rounds.jsonl" >"$PATCH_DIR/rounds.md"
 finish
