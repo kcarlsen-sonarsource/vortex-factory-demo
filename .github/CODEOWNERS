@@ -1,0 +1,12 @@
+# Human owner for the factory control surface. The factory App must never be an owner.
+/.github/                @kcarlsen-sonarsource
+/.claude/                @kcarlsen-sonarsource
+/CLAUDE.md               @kcarlsen-sonarsource
+/AGENTS.md               @kcarlsen-sonarsource
+/.sonar-config.json      @kcarlsen-sonarsource
+/sonar-project.properties @kcarlsen-sonarsource
+# swap: your build files
+/build.gradle            @kcarlsen-sonarsource
+/settings.gradle         @kcarlsen-sonarsource
+/gradle.properties       @kcarlsen-sonarsource
+/gradle/                 @kcarlsen-sonarsource
