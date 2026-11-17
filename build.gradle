@@ -8,8 +8,6 @@ plugins {
     id "io.github.ben-manes.versions" version "0.67.0"
 }
 
-version = "6.17.0"
-
 repositories {
     mavenCentral()
 }
@@ -168,6 +166,7 @@ sonar {
     properties {
         property "sonar.projectKey", "kcarlsen-sonarsource_vortex-factory-demo"
         property "sonar.organization", "kcarlsen-sonarsource"
+        property "sonar.projectVersion", "6.17.0"
     }
 }
 
