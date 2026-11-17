@@ -5,11 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.traccar.api.security.PermissionsService;
 import org.traccar.api.security.UserPrincipal;
 import org.traccar.helper.LogAction;
-import org.traccar.model.BaseModel;
 import org.traccar.model.Device;
 import org.traccar.model.DeviceImportResult;
 import org.traccar.model.Group;
-import org.traccar.model.Permission;
 import org.traccar.model.Server;
 import org.traccar.model.User;
 import org.traccar.session.ConnectionManager;
@@ -20,14 +18,7 @@ import org.traccar.storage.query.Request;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.SecurityContext;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,105 +36,10 @@ class DeviceResourceImportTest {
 
     private static final String HEADER = "name,uniqueId,phone,model,category,group\n";
 
-    /**
-     * In-memory storage holding objects of a single user. Supports the conditions used by the import flow.
-     */
-    private static final class MemoryStorage extends Storage {
-
-        private final Map<Class<?>, List<Object>> objects = new HashMap<>();
-        private final Map<Class<?>, Set<Long>> linked = new HashMap<>();
-        private long nextId = 100;
-
-        void put(Object object, boolean link) {
-            objects.computeIfAbsent(object.getClass(), k -> new ArrayList<>()).add(object);
-            if (link) {
-                linked.computeIfAbsent(object.getClass(), k -> new HashSet<>()).add(((BaseModel) object).getId());
-            }
-        }
-
-        private boolean matches(Object object, Condition condition) {
-            if (condition == null) {
-                return true;
-            } else if (condition instanceof Condition.And and) {
-                return matches(object, and.getFirst()) && matches(object, and.getSecond());
-            } else if (condition instanceof Condition.Equals equals) {
-                Object value = switch (equals.getColumn()) {
-                    case "id" -> ((BaseModel) object).getId();
-                    case "uniqueId" -> ((Device) object).getUniqueId();
-                    default -> throw new UnsupportedOperationException(equals.getColumn());
-                };
-                return equals.getValue().equals(value);
-            } else if (condition instanceof Condition.Permission permission) {
-                return linked.getOrDefault(permission.getPropertyClass(), Set.of())
-                        .contains(((BaseModel) object).getId());
-            }
-            throw new UnsupportedOperationException(condition.getClass().getName());
-        }
-
-        @Override
-        public <T> List<T> getObjects(Class<T> clazz, Request request) {
-            return getObjectsStream(clazz, request).toList();
-        }
-
-        @Override
-        public <T> Stream<T> getObjectsStream(Class<T> clazz, Request request) {
-            return objects.getOrDefault(clazz, List.of()).stream()
-                    .filter(object -> matches(object, request.getCondition()))
-                    .map(clazz::cast);
-        }
-
-        @Override
-        public <T> long addObject(T entity, Request request) {
-            long id = nextId++;
-            ((BaseModel) entity).setId(id);
-            put(entity, false);
-            return id;
-        }
-
-        @Override
-        public <T> void updateObject(T entity, Request request) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void removeObject(Class<?> clazz, Request request) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Permission> getPermissions(
-                Class<? extends BaseModel> ownerClass, long ownerId,
-                Class<? extends BaseModel> propertyClass, long propertyId) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void addPermission(Permission permission) {
-            linked.computeIfAbsent(permission.getPropertyClass(), k -> new HashSet<>()).add(permission.getPropertyId());
-        }
-
-        @Override
-        public void removePermission(Permission permission) {
-            throw new UnsupportedOperationException();
-        }
-
-    }
-
-    private MemoryStorage storage;
+    private ResourceTestStorage storage;
     private User user;
     private LogAction actionLogger;
     private DeviceResource resource;
-
-    private static void inject(Object target, Class<?> type, Object value) throws IllegalAccessException {
-        for (Class<?> clazz = target.getClass(); clazz != Object.class; clazz = clazz.getSuperclass()) {
-            for (Field field : clazz.getDeclaredFields()) {
-                if (field.getType().equals(type)) {
-                    field.setAccessible(true);
-                    field.set(target, value);
-                }
-            }
-        }
-    }
 
     private static Group group(long id, String name) {
         Group group = new Group();
@@ -162,7 +58,7 @@ class DeviceResourceImportTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        storage = new MemoryStorage();
+        storage = new ResourceTestStorage();
 
         user = new User();
         user.setId(USER_ID);
@@ -178,13 +74,13 @@ class DeviceResourceImportTest {
         actionLogger = mock(LogAction.class);
 
         resource = new DeviceResource();
-        inject(resource, SecurityContext.class, securityContext);
-        inject(resource, Storage.class, storage);
-        inject(resource, PermissionsService.class, new PermissionsService(storage));
-        inject(resource, LogAction.class, actionLogger);
-        inject(resource, CacheManager.class, mock(CacheManager.class));
-        inject(resource, ConnectionManager.class, mock(ConnectionManager.class));
-        inject(resource, HttpServletRequest.class, mock(HttpServletRequest.class));
+        ResourceTestStorage.inject(resource, SecurityContext.class, securityContext);
+        ResourceTestStorage.inject(resource, Storage.class, storage);
+        ResourceTestStorage.inject(resource, PermissionsService.class, new PermissionsService(storage));
+        ResourceTestStorage.inject(resource, LogAction.class, actionLogger);
+        ResourceTestStorage.inject(resource, CacheManager.class, mock(CacheManager.class));
+        ResourceTestStorage.inject(resource, ConnectionManager.class, mock(ConnectionManager.class));
+        ResourceTestStorage.inject(resource, HttpServletRequest.class, mock(HttpServletRequest.class));
     }
 
     @Test
