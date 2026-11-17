@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - name: Load pins
         run: |
-          cat .github/factory/versions.env >> "$GITHUB_ENV"
+          grep -E "^[A-Z0-9_]+=" .github/factory/versions.env >> "$GITHUB_ENV"
           mkdir -p "$OUT"
           echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
           git config user.name smoke && git config user.email smoke@example.invalid

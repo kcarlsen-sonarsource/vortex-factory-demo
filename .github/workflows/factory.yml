@@ -89,7 +89,7 @@ jobs:
           path: ${{ runner.temp }}/task
       - name: Load pins and paths
         run: |
-          cat ctl/.github/factory/versions.env >> "$GITHUB_ENV"
+          grep -E "^[A-Z0-9_]+=" ctl/.github/factory/versions.env >> "$GITHUB_ENV"
           {
             echo "EVIDENCE_DIR=$RUNNER_TEMP/evidence"
             echo "PATCH_DIR=$RUNNER_TEMP/patch"
