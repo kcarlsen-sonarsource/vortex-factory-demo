@@ -714,6 +714,35 @@ paths:
         '401':
           description: Unauthorized
           content: {}
+  /devices/import:
+    post:
+      operationId: postDevicesImport
+      summary: Create Devices from a CSV file
+      description: >-
+        The first row must be a header. Recognized columns are name, uniqueId, phone, model, category
+        and group (group name); name and uniqueId are required. Rows with a duplicate unique ID, an
+        unknown group or exceeding the device limit are skipped and returned with a reason.
+      tags:
+        - Devices
+      requestBody:
+        content:
+          text/csv:
+            schema:
+              type: string
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceImportResult'
+        '400':
+          description: Malformed CSV, missing required columns or no permission to add devices
+          content: {}
+        '401':
+          description: Unauthorized
+          content: {}
   /devices/{id}/accumulators:
     put:
       operationId: putDevicesIdAccumulators
@@ -4485,6 +4514,26 @@ components:
         messagesStored:
           type: integer
           description: Number of device messages stored to the database
+    DeviceImportResult:
+      type: object
+      properties:
+        imported:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+        skipped:
+          type: array
+          items:
+            type: object
+            properties:
+              row:
+                type: integer
+                description: 1-based line number in the CSV, counting the header row
+              uniqueId:
+                type: string
+              reason:
+                type: string
+                description: Duplicate unique ID, Unknown group, Ambiguous group, Missing name, Missing unique ID, Invalid device identifier or Device limit exceeded
     DeviceAccumulators:
       type: object
       properties:

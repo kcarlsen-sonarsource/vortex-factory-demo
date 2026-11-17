@@ -17,9 +17,12 @@ package org.traccar.api.resource;
 
 import org.traccar.api.BaseObjectResource;
 import org.traccar.database.MediaManager;
+import org.traccar.helper.CsvParser;
 import org.traccar.helper.LogAction;
 import org.traccar.model.Device;
 import org.traccar.model.DeviceAccumulators;
+import org.traccar.model.DeviceImportResult;
+import org.traccar.model.Group;
 import org.traccar.model.LinkedDevice;
 import org.traccar.model.Position;
 import org.traccar.model.User;
@@ -50,8 +53,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Path("devices")
@@ -61,6 +70,12 @@ public class DeviceResource extends BaseObjectResource<Device> {
 
     private static final int DEFAULT_BUFFER_SIZE = 8192;
     private static final int IMAGE_SIZE_LIMIT = 500000;
+
+    private static final String UNIQUE_ID = "uniqueId";
+
+    private static final String COLUMN_NAME = "name";
+    private static final String COLUMN_UNIQUE_ID = "uniqueid";
+    private static final String COLUMN_GROUP = "group";
 
     @Inject
     private CacheManager cacheManager;
@@ -100,7 +115,7 @@ public class DeviceResource extends BaseObjectResource<Device> {
                 result.addAll(storage.getObjects(Device.class, new Request(
                         columns,
                         new Condition.And(
-                                new Condition.Equals("uniqueId", uniqueId),
+                                new Condition.Equals(UNIQUE_ID, uniqueId),
                                 new Condition.Permission(User.class, getUserId(), Device.class)))));
             }
             for (Long deviceId : deviceIds) {
@@ -137,7 +152,7 @@ public class DeviceResource extends BaseObjectResource<Device> {
 
             if (keyword != null && !keyword.isEmpty()) {
                 conditions.add(new Condition.Contains(
-                        List.of("name", "uniqueId", "phone", "model", "contact"), keyword));
+                        List.of("name", UNIQUE_ID, "phone", "model", "contact"), keyword));
             }
 
             return storage.getObjectsStream(baseClass, new Request(
@@ -185,6 +200,112 @@ public class DeviceResource extends BaseObjectResource<Device> {
 
         actionLogger.resetAccumulators(request, getUserId(), entity.getDeviceId());
         return Response.noContent().build();
+    }
+
+    private static String normalizeHeader(String header) {
+        return header.trim().toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+    }
+
+    private static String cell(List<String> row, Integer index) {
+        if (index == null || index >= row.size()) {
+            return null;
+        }
+        String value = row.get(index).trim();
+        return value.isEmpty() ? null : value;
+    }
+
+    private Map<String, List<Group>> getAccessibleGroups() throws StorageException {
+        Condition condition = permissionsService.notAdmin(getUserId())
+                ? new Condition.Permission(User.class, getUserId(), Group.class) : null;
+        return storage.getObjects(Group.class, new Request(new Columns.Include("id", "name"), condition))
+                .stream()
+                .filter(group -> group.getName() != null)
+                .collect(Collectors.groupingBy(group -> group.getName().trim()));
+    }
+
+    @Path("import")
+    @POST
+    @Consumes("text/csv")
+    public DeviceImportResult importCsv(String content) throws Exception {
+        permissionsService.checkEdit(getUserId(), Device.class, true, false);
+
+        List<List<String>> rows = CsvParser.parse(content);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("Missing header row");
+        }
+        Map<String, Integer> columns = new HashMap<>();
+        List<String> headers = rows.get(0);
+        for (int i = 0; i < headers.size(); i++) {
+            String header = normalizeHeader(headers.get(i));
+            columns.putIfAbsent("groupname".equals(header) ? COLUMN_GROUP : header, i);
+        }
+        if (!columns.containsKey(COLUMN_NAME) || !columns.containsKey(COLUMN_UNIQUE_ID)) {
+            throw new IllegalArgumentException("Header must contain name and uniqueId columns");
+        }
+
+        Map<String, List<Group>> groups = getAccessibleGroups();
+        Set<String> seenUniqueIds = new HashSet<>();
+        DeviceImportResult result = new DeviceImportResult();
+
+        for (int i = 1; i < rows.size(); i++) {
+            List<String> row = rows.get(i);
+            String uniqueId = cell(row, columns.get(COLUMN_UNIQUE_ID));
+            String reason = importRow(row, columns, groups, seenUniqueIds, result);
+            if (reason != null) {
+                result.addSkipped(i + 1, uniqueId, reason);
+            }
+        }
+        return result;
+    }
+
+    private String importRow(
+            List<String> row, Map<String, Integer> columns, Map<String, List<Group>> groups,
+            Set<String> seenUniqueIds, DeviceImportResult result) throws Exception {
+
+        String name = cell(row, columns.get(COLUMN_NAME));
+        String uniqueId = cell(row, columns.get(COLUMN_UNIQUE_ID));
+        if (name == null) {
+            return "Missing name";
+        }
+        if (uniqueId == null) {
+            return "Missing unique ID";
+        }
+
+        Device device = new Device();
+        try {
+            device.setUniqueId(uniqueId);
+        } catch (IllegalArgumentException e) {
+            return e.getMessage();
+        }
+        if (!seenUniqueIds.add(device.getUniqueId()) || storage.getObject(Device.class, new Request(
+                new Columns.Include("id"), new Condition.Equals(UNIQUE_ID, device.getUniqueId()))) != null) {
+            return "Duplicate unique ID";
+        }
+        device.setName(name);
+        device.setPhone(cell(row, columns.get("phone")));
+        device.setModel(cell(row, columns.get("model")));
+        device.setCategory(cell(row, columns.get("category")));
+
+        String groupName = cell(row, columns.get(COLUMN_GROUP));
+        if (groupName != null) {
+            List<Group> matches = groups.getOrDefault(groupName, List.of());
+            if (matches.isEmpty()) {
+                return "Unknown group";
+            } else if (matches.size() > 1) {
+                return "Ambiguous group";
+            }
+            device.setGroupId(matches.get(0).getId());
+        }
+
+        try {
+            permissionsService.checkEdit(getUserId(), device, true, false);
+        } catch (SecurityException e) {
+            return "Device limit exceeded";
+        }
+
+        createObject(device);
+        result.addImported(device);
+        return null;
     }
 
     private String imageExtension(String type) {
