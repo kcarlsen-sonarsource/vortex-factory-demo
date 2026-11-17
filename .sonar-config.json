@@ -1,0 +1,8 @@
+{
+  "project": {
+    "projectKey": "kcarlsen-sonarsource_vortex-factory-demo",
+    "path": ".",
+    "region": "eu",
+    "organization": "kcarlsen-sonarsource"
+  }
+}
