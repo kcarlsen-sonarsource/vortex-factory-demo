@@ -1,0 +1,84 @@
+name: Smoke
+# Temporary. Removed from main after the smoke run.
+on:
+  workflow_dispatch:
+    inputs:
+      parts:
+        description: Comma-separated parts to run (s1,help,s2,s3,s4,s5)
+        default: s1,help
+      warm:
+        description: Run compileJava before the parts
+        type: boolean
+        default: false
+permissions: {}
+jobs:
+  smoke:
+    name: Smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: factory-worker
+    permissions:
+      contents: read
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      ANTHROPIC_BASE_URL: ${{ secrets.ANTHROPIC_BASE_URL }}
+      ANTHROPIC_CUSTOM_HEADERS: ${{ secrets.ANTHROPIC_CUSTOM_HEADERS }}
+      SONARQUBE_CLI_TOKEN: ${{ secrets.SONARQUBE_CLI_TOKEN }}
+      SONARQUBE_CLI_ORG: ${{ vars.SONARQUBE_CLI_ORG }}
+      DO_NOT_TRACK: "1"
+      DISABLE_AUTOUPDATER: "1"
+      OUT: ${{ github.workspace }}/../smoke-out
+      PARTS: ${{ inputs.parts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Load pins
+        run: |
+          cat .github/factory/versions.env >> "$GITHUB_ENV"
+          mkdir -p "$OUT"
+          echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          git config user.name smoke && git config user.email smoke@example.invalid
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          save-cache: "false"
+      - name: Warm the build
+        if: inputs.warm
+        run: |
+          start=$SECONDS
+          ./gradlew compileJava
+          echo "compileJava $((SECONDS - start))s" | tee "$OUT/warm-compile.txt"
+      - name: Install Claude Code
+        run: |
+          npm install --global --prefix "$HOME/.local" "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          claude --version | tee "$OUT/claude-version.txt"
+      - name: S1 install and integrate
+        if: contains(inputs.parts, 's1')
+        run: .github/smoke/s1.sh
+      - name: Help dumps
+        if: contains(inputs.parts, 'help')
+        run: .github/smoke/help.sh
+      - name: S2 hooks headless
+        if: contains(inputs.parts, 's2')
+        run: .github/smoke/s2.sh
+      - name: S3 context engine
+        if: contains(inputs.parts, 's3')
+        run: .github/smoke/s3.sh
+      - name: S4 Vortex DEEP
+        if: contains(inputs.parts, 's4')
+        run: .github/smoke/s4.sh
+      - name: S5 Claude caps
+        if: contains(inputs.parts, 's5')
+        run: .github/smoke/s5.sh
+      - name: Redact
+        id: redact
+        if: always()
+        run: python3 -I .github/smoke/scrub.py "$OUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.redact.outcome != 'failure'
+        with:
+          name: smoke-out
+          path: ${{ github.workspace }}/../smoke-out
+          retention-days: 14
