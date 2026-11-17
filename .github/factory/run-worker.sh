@@ -52,7 +52,7 @@ finish() {
 
 while :; do
   claude_rc=0
-  if [ "$round" -eq 0 ]; then
+  if [[ "$round" -eq 0 ]]; then
     run_claude 0 --session-id "$sid" || claude_rc=$?
   else
     run_claude "$round" --resume "$sid" || claude_rc=$?
@@ -63,14 +63,14 @@ while :; do
   subtype=$(jq -r '.subtype // "none"' <<<"$result")
   turns=$(jq -r '.num_turns // 0' <<<"$result")
   cost=$(jq -r '.total_cost_usd // 0' <<<"$result")
-  if [ "$claude_rc" -ne 0 ] || [ "$subtype" != "success" ] || [ "$(jq -r '.is_error // false' <<<"$result")" = true ]; then
+  if [[ "$claude_rc" -ne 0 ]] || [[ "$subtype" != "success" ]] || [[ "$(jq -r '.is_error // false' <<<"$result")" = true ]]; then
     outcome=agent-error
     jq -nc --argjson r "$round" --arg s "$subtype" --argjson t "$turns" --argjson c "$cost" --argjson rc "$claude_rc" \
       '{round:$r, agent:$s, agent_rc:$rc, turns:$t, cost_usd:$c}' >>"$EVIDENCE_DIR/rounds.jsonl"
     finish
   fi
 
-  if [ -z "$(git -C "$WS" status --porcelain --untracked-files=all)" ]; then
+  if [[ -z "$(git -C "$WS" status --porcelain --untracked-files=all)" ]]; then
     outcome=no-change
     jq -nc --argjson r "$round" --argjson t "$turns" --argjson c "$cost" \
       '{round:$r, agent:"success", turns:$t, cost_usd:$c, changed:false}' >>"$EVIDENCE_DIR/rounds.jsonl"
@@ -83,8 +83,9 @@ while :; do
   vrc=0
   (cd "$WS" && "$here/verify.sh" "$EVIDENCE_DIR/verify-r$round.json") >"$EVIDENCE_DIR/findings-r$round.txt" 2>"$EVIDENCE_DIR/verify-r$round.err" || vrc=$?
   nfind=$(grep -c . "$EVIDENCE_DIR/findings-r$round.txt" || true)
-  jq -nc --argjson r "$round" --argjson t "$turns" --argjson c "$cost" --argjson tr "$tests_rc" --argjson v "$vrc" --argjson n "$nfind" \
-    '{round:$r, agent:"success", turns:$t, cost_usd:$c, tests_rc:$tr, verify_rc:$v, findings:$n}' >>"$EVIDENCE_DIR/rounds.jsonl"
+  npre=$(grep -c . "$EVIDENCE_DIR/verify-r$round.json.preexisting.txt" 2>/dev/null || true)
+  jq -nc --argjson r "$round" --argjson t "$turns" --argjson c "$cost" --argjson tr "$tests_rc" --argjson v "$vrc" --argjson n "$nfind" --argjson p "${npre:-0}" \
+    '{round:$r, agent:"success", turns:$t, cost_usd:$c, tests_rc:$tr, verify_rc:$v, findings:$n, preexisting:$p}' >>"$EVIDENCE_DIR/rounds.jsonl"
 
   case "$vrc" in
     52) outcome=no-ci-baseline; finish ;;
@@ -92,15 +93,15 @@ while :; do
     *) outcome=error; finish ;;
   esac
 
-  if [ "$vrc" -eq 0 ] && [ "$tests_rc" -eq 0 ]; then
+  if [[ "$vrc" -eq 0 ]] && [[ "$tests_rc" -eq 0 ]]; then
     outcome=clean
     break
   fi
 
   tail_log=""
-  [ "$tests_rc" -eq 0 ] || tail_log=$(tail -n 60 "$EVIDENCE_DIR/tests-r$round.log")
+  [[ "$tests_rc" -eq 0 ]] || tail_log=$(tail -n 60 "$EVIDENCE_DIR/tests-r$round.log")
   fp=$( { cat "$EVIDENCE_DIR/findings-r$round.txt"; printf '%s' "$tail_log" | tr -d '0-9'; } | shasum -a 256 | cut -d' ' -f1)
-  if [ "$round" -ge "$MAX_REPAIR" ] || [ "$fp" = "$last_fp" ]; then
+  if [[ "$round" -ge "$MAX_REPAIR" ]] || [[ "$fp" = "$last_fp" ]]; then
     outcome=unresolved
     finish
   fi
@@ -110,7 +111,7 @@ while :; do
   {
     echo "Checks failed on your change. Fix these, then run the tests again:"
     cat "$EVIDENCE_DIR/findings-r$((round - 1)).txt"
-    [ -z "$tail_log" ] || printf '\nLast 60 lines of the failing test run:\n%s\n' "$tail_log"
+    [[ -z "$tail_log" ]] || printf '\nLast 60 lines of the failing test run:\n%s\n' "$tail_log"
   } >"$EVIDENCE_DIR/prompt-$round.txt"
 done
 
