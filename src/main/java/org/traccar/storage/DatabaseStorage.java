@@ -167,7 +167,7 @@ public class DatabaseStorage extends Storage {
     }
 
     @Override
-    public void removeObject(Class<?> clazz, Request request) throws StorageException {
+    public int removeObject(Class<?> clazz, Request request) throws StorageException {
         StringBuilder query = new StringBuilder("DELETE FROM ");
         query.append(getStorageName(clazz));
         query.append(formatCondition(request.getCondition()));
@@ -176,7 +176,7 @@ public class DatabaseStorage extends Storage {
             for (int index = 0; index < values.size(); index++) {
                 builder.setValue(index, values.get(index));
             }
-            builder.executeUpdate();
+            return builder.executeUpdateCount();
         } catch (SQLException e) {
             throw new StorageException(e);
         }

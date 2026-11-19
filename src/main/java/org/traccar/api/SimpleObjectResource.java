@@ -69,7 +69,8 @@ public class SimpleObjectResource<T extends BaseModel> extends BaseObjectResourc
 
         Columns columns = excludeAttributes ? new Columns.Exclude("attributes") : new Columns.All();
         Order order = new Order(sortField != null ? sortField : "id", false, limit, offset);
-        return storage.getObjectsStream(baseClass, new Request(columns, Condition.merge(conditions), order));
+        return withRetention(
+                storage.getObjectsStream(baseClass, new Request(columns, Condition.merge(conditions), order)));
     }
 
 }

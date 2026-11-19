@@ -15,6 +15,7 @@
  */
 package org.traccar.storage;
 
+import org.traccar.helper.DateUtil;
 import org.traccar.helper.ReflectionCache;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Device;
@@ -29,6 +30,7 @@ import org.traccar.storage.query.Order;
 import org.traccar.storage.query.Request;
 
 import java.lang.invoke.MethodHandle;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -91,6 +93,9 @@ public class MemoryStorage extends Storage {
         return switch (genericCondition) {
             case Condition.Compare condition -> {
                 Object value = retrieveValue(object, condition.getColumn());
+                if (condition.getValue() instanceof Instant) {
+                    value = DateUtil.toInstant(value);
+                }
                 int result = ((Comparable) value).compareTo(condition.getValue());
                 yield switch (condition.getOperator()) {
                     case "<" -> result < 0;
@@ -98,6 +103,7 @@ public class MemoryStorage extends Storage {
                     case ">" -> result > 0;
                     case ">=" -> result >= 0;
                     case "=" -> result == 0;
+                    case "<>" -> result != 0;
                     default -> throw new RuntimeException("Unsupported comparison condition");
                 };
             }
@@ -244,9 +250,11 @@ public class MemoryStorage extends Storage {
     }
 
     @Override
-    public void removeObject(Class<?> clazz, Request request) {
-        objects.computeIfAbsent(clazz, key -> new ConcurrentHashMap<>())
-                .values().removeIf(object -> checkCondition(request.getCondition(), object));
+    public int removeObject(Class<?> clazz, Request request) {
+        var items = objects.computeIfAbsent(clazz, key -> new ConcurrentHashMap<>());
+        int sizeBefore = items.size();
+        items.values().removeIf(object -> checkCondition(request.getCondition(), object));
+        return sizeBefore - items.size();
     }
 
     private Set<Pair<Long, Long>> getPermissionsSet(Class<?> ownerClass, Class<?> propertyClass) {

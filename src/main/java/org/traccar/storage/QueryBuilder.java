@@ -15,6 +15,7 @@
  */
 package org.traccar.storage;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +34,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -100,6 +102,14 @@ public final class QueryBuilder implements AutoCloseable {
         statement.setInt(index + 1, value);
     }
 
+    public void setNullableInteger(int index, Integer value) throws SQLException {
+        if (value == null) {
+            statement.setNull(index + 1, Types.INTEGER);
+        } else {
+            statement.setInt(index + 1, value);
+        }
+    }
+
     public void setLong(int index, long value) throws SQLException {
         setLong(index, value, false);
     }
@@ -148,6 +158,7 @@ public final class QueryBuilder implements AutoCloseable {
             case Double doubleValue -> setDouble(index, doubleValue);
             case String stringValue -> setString(index, stringValue);
             case Date dateValue -> setDate(index, dateValue);
+            case Instant instantValue -> setDate(index, Date.from(instantValue));
             default -> {}
         }
     }
@@ -157,30 +168,36 @@ public final class QueryBuilder implements AutoCloseable {
             for (int index = 0; index < columns.size(); index++) {
                 String column = columns.get(index);
                 var property = ReflectionCache.getProperties(object.getClass(), "get").get(column);
-                Class<?> returnType = property.type();
                 Object value = property.handle().invokeExact(object);
-                if (returnType.equals(boolean.class)) {
-                    setBoolean(index, (Boolean) value);
-                } else if (returnType.equals(int.class)) {
-                    setInteger(index, (Integer) value);
-                } else if (returnType.equals(long.class)) {
-                    setLong(index, (Long) value, column.endsWith("Id"));
-                } else if (returnType.equals(double.class)) {
-                    setDouble(index, (Double) value);
-                } else if (returnType.equals(String.class)) {
-                    setString(index, (String) value);
-                } else if (returnType.isEnum()) {
-                    setString(index, value != null ? ((Enum<?>) value).name() : null);
-                } else if (returnType.equals(Date.class)) {
-                    setDate(index, (Date) value);
-                } else if (returnType.equals(byte[].class)) {
-                    setBlob(index, (byte[]) value);
-                } else {
-                    setString(index, objectMapper.writeValueAsString(value));
-                }
+                setPropertyValue(index, column, property.type(), value);
             }
         } catch (Throwable e) {
             LOGGER.warn("Set object error", e);
+        }
+    }
+
+    private void setPropertyValue(
+            int index, String column, Class<?> type, Object value) throws SQLException, JsonProcessingException {
+        if (type.equals(boolean.class)) {
+            setBoolean(index, (Boolean) value);
+        } else if (type.equals(int.class)) {
+            setInteger(index, (Integer) value);
+        } else if (type.equals(Integer.class)) {
+            setNullableInteger(index, (Integer) value);
+        } else if (type.equals(long.class)) {
+            setLong(index, (Long) value, column.endsWith("Id"));
+        } else if (type.equals(double.class)) {
+            setDouble(index, (Double) value);
+        } else if (type.equals(String.class)) {
+            setString(index, (String) value);
+        } else if (type.isEnum()) {
+            setString(index, value != null ? ((Enum<?>) value).name() : null);
+        } else if (type.equals(Date.class)) {
+            setDate(index, (Date) value);
+        } else if (type.equals(byte[].class)) {
+            setBlob(index, (byte[]) value);
+        } else {
+            setString(index, objectMapper.writeValueAsString(value));
         }
     }
 
@@ -349,6 +366,11 @@ public final class QueryBuilder implements AutoCloseable {
             }
         }
         return 0;
+    }
+
+    public int executeUpdateCount() throws SQLException {
+        logQuery();
+        return statement.executeUpdate();
     }
 
     public void addBatch() throws SQLException {
