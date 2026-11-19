@@ -43,7 +43,12 @@ public abstract class Storage {
 
     public abstract <T> void updateObject(T entity, Request request) throws StorageException;
 
-    public abstract void removeObject(Class<?> clazz, Request request) throws StorageException;
+    /**
+     * Removes all objects matching the request condition.
+     *
+     * @return number of removed objects
+     */
+    public abstract int removeObject(Class<?> clazz, Request request) throws StorageException;
 
     public abstract List<Permission> getPermissions(
             Class<? extends BaseModel> ownerClass, long ownerId,

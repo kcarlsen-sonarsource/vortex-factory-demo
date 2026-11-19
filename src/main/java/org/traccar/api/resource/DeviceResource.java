@@ -125,7 +125,7 @@ public class DeviceResource extends BaseObjectResource<Device> {
                                 new Condition.Equals("id", deviceId),
                                 new Condition.Permission(User.class, getUserId(), Device.class)))));
             }
-            return result.stream();
+            return withRetention(result.stream());
 
         } else {
 
@@ -155,8 +155,8 @@ public class DeviceResource extends BaseObjectResource<Device> {
                         List.of("name", UNIQUE_ID, "phone", "model", "contact"), keyword));
             }
 
-            return storage.getObjectsStream(baseClass, new Request(
-                    columns, Condition.merge(conditions), new Order("name", false, limit, offset)));
+            return withRetention(storage.getObjectsStream(baseClass, new Request(
+                    columns, Condition.merge(conditions), new Order("name", false, limit, offset))));
 
         }
     }

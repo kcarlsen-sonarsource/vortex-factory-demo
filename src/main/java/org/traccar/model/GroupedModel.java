@@ -16,7 +16,13 @@
  */
 package org.traccar.model;
 
+import org.traccar.storage.QueryIgnore;
+
 public class GroupedModel extends ExtendedModel {
+
+    public static final String RETENTION_SOURCE_OWN = "own";
+    public static final String RETENTION_SOURCE_GROUP = "group";
+    public static final String RETENTION_SOURCE_NONE = "none";
 
     private long groupId;
 
@@ -26,6 +32,49 @@ public class GroupedModel extends ExtendedModel {
 
     public void setGroupId(long groupId) {
         this.groupId = groupId;
+    }
+
+    private Integer retentionDays;
+
+    public Integer getRetentionDays() {
+        return retentionDays;
+    }
+
+    public void setRetentionDays(Integer retentionDays) {
+        this.retentionDays = retentionDays;
+    }
+
+    private Integer effectiveRetentionDays;
+
+    @QueryIgnore
+    public Integer getEffectiveRetentionDays() {
+        return effectiveRetentionDays;
+    }
+
+    public void setEffectiveRetentionDays(Integer effectiveRetentionDays) {
+        this.effectiveRetentionDays = effectiveRetentionDays;
+    }
+
+    private String retentionSource;
+
+    @QueryIgnore
+    public String getRetentionSource() {
+        return retentionSource;
+    }
+
+    public void setRetentionSource(String retentionSource) {
+        this.retentionSource = retentionSource;
+    }
+
+    private long retentionGroupId;
+
+    @QueryIgnore
+    public long getRetentionGroupId() {
+        return retentionGroupId;
+    }
+
+    public void setRetentionGroupId(long retentionGroupId) {
+        this.retentionGroupId = retentionGroupId;
     }
 
 }

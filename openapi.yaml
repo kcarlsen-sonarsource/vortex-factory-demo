@@ -4133,6 +4133,24 @@ components:
         category:
           type: [string, 'null']
           description: Free form category used for grouping devices in the UI
+        retentionDays:
+          type: [integer, 'null']
+          minimum: 1
+          description: Days of position and event history to keep. Overrides the value inherited from the group
+        effectiveRetentionDays:
+          type: [integer, 'null']
+          readOnly: true
+          description: Retention in effect for the device. `null` means history is kept indefinitely
+        retentionSource:
+          type: string
+          enum: [own, group, none]
+          readOnly: true
+          description: Where the effective retention comes from
+        retentionGroupId:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Group the effective retention is inherited from when `retentionSource` is `group`
         attributes:
           type: object
           description: Custom attributes for protocol or business specific data
@@ -4151,6 +4169,24 @@ components:
           type: integer
           format: int64
           description: Parent group identifier for nested grouping
+        retentionDays:
+          type: [integer, 'null']
+          minimum: 1
+          description: Days of position and event history to keep for devices in the group and its subgroups
+        effectiveRetentionDays:
+          type: [integer, 'null']
+          readOnly: true
+          description: Retention in effect for the group. `null` means history is kept indefinitely
+        retentionSource:
+          type: string
+          enum: [own, group, none]
+          readOnly: true
+          description: Where the effective retention comes from
+        retentionGroupId:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Ancestor group the effective retention is inherited from when `retentionSource` is `group`
         attributes:
           type: object
           description: Arbitrary metadata attached to the group

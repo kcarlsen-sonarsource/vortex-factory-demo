@@ -106,7 +106,7 @@ class DeviceResourceImportTest {
         }
 
         @Override
-        public void removeObject(Class<?> clazz, Request request) {
+        public int removeObject(Class<?> clazz, Request request) {
             throw new UnsupportedOperationException();
         }
 

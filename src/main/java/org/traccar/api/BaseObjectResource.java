@@ -18,8 +18,10 @@ package org.traccar.api;
 
 import org.traccar.api.security.ServiceAccountUser;
 import org.traccar.helper.LogAction;
+import org.traccar.helper.RetentionResolver;
 import org.traccar.model.BaseModel;
 import org.traccar.model.Group;
+import org.traccar.model.GroupedModel;
 import org.traccar.model.ObjectOperation;
 import org.traccar.model.Permission;
 import org.traccar.model.User;
@@ -43,6 +45,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Response;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class BaseObjectResource<T extends BaseModel> extends BaseResource {
 
@@ -71,23 +74,50 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
         T entity = storage.getObject(baseClass, new Request(
                 new Columns.All(), new Condition.Equals("id", id)));
         if (entity != null) {
-            return Response.ok(entity).build();
+            return Response.ok(withRetention(entity)).build();
         } else {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+    }
+
+    /**
+     * Populates the effective retention of grouped objects. Other objects are returned unchanged.
+     */
+    protected T withRetention(T entity) throws StorageException {
+        if (entity instanceof GroupedModel grouped) {
+            RetentionResolver.load(storage).apply(grouped);
+        }
+        return entity;
+    }
+
+    /**
+     * Populates the effective retention of grouped objects in the stream. Group hierarchy is loaded once.
+     */
+    protected Stream<T> withRetention(Stream<T> entities) throws StorageException {
+        if (!GroupedModel.class.isAssignableFrom(baseClass)) {
+            return entities;
+        }
+        RetentionResolver resolver = RetentionResolver.load(storage);
+        return entities.map(entity -> {
+            resolver.apply((GroupedModel) entity);
+            return entity;
+        });
     }
 
     @POST
     public Response add(T entity) throws Exception {
         permissionsService.checkEdit(getUserId(), entity, true, false);
 
+        if (entity instanceof GroupedModel grouped) {
+            RetentionResolver.validate(grouped);
+        }
         if (entity instanceof Group group) {
             checkGroupHierarchy(group, true);
         }
 
         createObject(entity);
 
-        return Response.ok(entity).build();
+        return Response.ok(withRetention(entity)).build();
     }
 
     /**
@@ -122,6 +152,9 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
 
         permissionsService.checkEdit(getUserId(), entity, false, skipReadonly);
 
+        if (entity instanceof GroupedModel grouped) {
+            RetentionResolver.validate(grouped);
+        }
         if (entity instanceof Group group) {
             checkGroupHierarchy(group, false);
         }
@@ -139,7 +172,7 @@ public abstract class BaseObjectResource<T extends BaseModel> extends BaseResour
         cacheManager.invalidateObject(true, entity.getClass(), entity.getId(), ObjectOperation.UPDATE);
         actionLogger.edit(request, getUserId(), entity);
 
-        return Response.ok(entity).build();
+        return Response.ok(withRetention(entity)).build();
     }
 
     void checkGroupHierarchy(Group group, boolean addition) throws StorageException {

@@ -80,4 +80,11 @@ public final class DateUtil {
         }
     }
 
+    /**
+     * Converts a legacy date value to {@link Instant}. Any other value is returned unchanged.
+     */
+    public static Object toInstant(Object value) {
+        return value instanceof Date date ? date.toInstant() : value;
+    }
+
 }
